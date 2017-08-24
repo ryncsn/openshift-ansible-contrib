@@ -130,7 +130,15 @@ The `openstack_num_masters`, `openstack_num_infra` and
 App nodes to create.
 
 The `openshift_cluster_node_labels` defines custom labels for your openshift
-cluster node groups, like app or infra nodes. For example: `{'region': 'infra'}`.
+cluster node groups. It currently supports app and infra node groups.
+The default value of this variable sets `region: primary` to app nodes and
+`region: infra` to infra nodes.
+An example of setting a customised label:
+```
+openshift_cluster_node_labels:
+  app:
+    mylabel: myvalue
+```
 
 The `openstack_nodes_to_remove` allows you to specify the numerical indexes
 of App nodes that should be removed; for example, ['0', '2'],
@@ -161,6 +169,19 @@ is yet to be supported, so the static inventory will be created anyway.
 The `openstack_inventory_path` points the directory to host the generated static inventory.
 It should point to the copied example inventory directory, otherwise ti creates
 a new one for you.
+
+#### Multi-master configuration
+
+Please refer to the official documentation for the
+[multi-master setup](https://docs.openshift.com/container-platform/3.6/install_config/install/advanced_install.html#multiple-masters)
+and define the corresponding [inventory
+variables](https://docs.openshift.com/container-platform/3.6/install_config/install/advanced_install.html#configuring-cluster-variables)
+in `inventory/group_vars/OSEv3.yml`. For example, given a load balancer node
+under the ansible group named `ext_lb`:
+
+    openshift_master_cluster_method: native
+    openshift_master_cluster_hostname: "{{ groups.ext_lb.0 }}"
+    openshift_master_cluster_public_hostname: "{{ groups.ext_lb.0 }}"
 
 #### Security notes
 
@@ -257,6 +278,44 @@ as a separate playbook, use the following command:
 The first infra node then becomes a bastion node as well and proxies access
 for future ansible commands. The post-provision step also configures Satellite,
 if requested, and DNS server, and ensures other OpenShift requirements to be met.
+
+### Running Custom Post-Provision Actions
+
+If you'd like to run post-provision actions, you can do so by creating a custom playbook. Here's one example that adds additional YUM repositories:
+
+```
+---
+- hosts: app
+  tasks:
+
+  # enable EPL
+  - name: Add repository
+    yum_repository:
+      name: epel
+      description: EPEL YUM repo
+      baseurl: https://download.fedoraproject.org/pub/epel/$releasever/$basearch/
+```
+
+This example runs against app nodes. The list of options include:
+
+  - cluster_hosts (all hosts: app, infra, masters, dns, lb)
+  - OSEv3 (app, infra, masters)
+  - app
+  - dns
+  - masters
+  - infra_hosts
+
+After writing your custom playbook, run it like this:
+
+```
+ansible-playbook --private-key ~/.ssh/openshift -i myinventory/ custom-playbook.yaml
+```
+
+If you'd like to limit the run to one particular host, you can do so as follows:
+
+```
+ansible-playbook --private-key ~/.ssh/openshift -i myinventory/ custom-playbook.yaml -l app-node-0.openshift.example.com
+```
 
 ### Install OpenShift
 
